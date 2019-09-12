@@ -1,0 +1,184 @@
+-------------------------------------------------------------------------------------------
+-------------------------------------------SETUP-------------------------------------------
+-------------------------------------------------------------------------------------------
+
+0. Conectar todas las raspberries a un mismos switch
+1. Bajar imagen de https://blog.hypriot.com/downloads/
+2. Quemar la imagen en las sd
+3. Detectar los ip's de las raspberries conecadas al switch
+	.Se puede hacer utilizando un scanner de Red
+		.https://www.advanced-ip-scanner.com/es/ 
+4. Login al sistema
+	.Usuario: pirate
+	.Pass: hypriot
+5. Conectarse por ssh a las raspberries
+6. Configurar nombre 
+	.Abrir archivo de configuracion
+		sudo nano /boot/user-data
+	.Setear hostName
+		Cambiar la línea correspondiente al hostName
+			hostane: Raspi-Master #Va a haber una raspi master y el resto esclavos
+			
+	NOTA!!!
+		Existe un error al modificar el nombre: al resetear la raspberry se pierde el hostname.
+
+	WORKAORUND!!! (https://raspberrypi.stackexchange.com/questions/37971/changing-hostname-undone-on-reboot)
+	NO ME FUNCIONÓ NADA!!! >>> Igualmente, al parecer, docker swarm realmente a cada nodo le asigna un id asi que no habría problema con que tengan todos el mismo hostname
+		Go to /etc/hostname
+		and change the hostname there. 
+		systemctl restart avahi-daemon
+
+7. Configurar Ip Fija
+	.Abrir archivo de configuracion
+		sudo nano /etc/network/interfaces
+	. Configuracion
+		.Comentar todas las lineas
+			allow-hotplug eth0
+			iface eth0 inet static
+			address 169.254.1.2
+			network 169.254.1.0
+			netmask 255.255.0.0
+			broadcast 169.254.1.255
+			#gateway 169.254.1.1
+
+8. (Opcional) Conectar a una red wifi usando wifi integrado
+	1. Abrir archivo de configuracion
+		sudo nano /etc/network/interfaces
+
+	2. Configuracion --> Agregar las lineas
+	
+		allow-hotplug wlan0
+		iface wlan0 inet dhcp
+		gateway 192.168.0.1 #Direccion Ip del router
+		wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+		iface default inet dhcp
+		path: /etc/network/interfaces.d/wlan0
+	
+	3. Claves de Wifi --> ejecutar los siguientes comandos (copiar y pegar en la consola)
+
+		echo 'network={
+		  ssid="NOMBRE_DE_LA_RED_WIFI"
+		  psk="CLAVE_DE_LA_RED_WIFI"
+		}' | sudo tee -a /etc/wpa_supplicant/wpa_supplicant.conf
+		
+		NOTA --> Esto puede tambien hacerse a mano y copiar la siguiente config en 
+		
+			sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
+
+  				network={
+				  ssid="NOMBRE_DE_LA_RED_WIFI"
+				  psk="CLAVE_DE_LA_RED_WIFI"
+				}
+
+	
+	4. Modificar user-data
+		sudo nano /boot/user-data
+		 
+			Descomentar la linea
+			
+				- 'ifup wlan0'
+
+R. Las ip de las raspberries quedan así:
+
+	.3B+ con la carcaza Negra --> Master
+		IP       -> 169.254.1.2
+		HostName -> Raspi-Master
+	.3B+ sin carcaza --> Slave 1
+		IP       -> 169.254.1.3
+		HostName -> Raspi-Slave1
+	.2B --> Slave 2
+		IP       -> 169.254.1.4
+		HostName -> Raspi-Slave2
+	.Notebook
+		169.254.1.100
+
+R. Recomendación --> Descargar mtputty para gestionar multiples ventanas de ssh
+	http://ttyplus.com/downloads.html
+	
+8.Configurar Docket Swarm
+
+	.En el Master Ejecutamos:
+	
+		docker swarm init --advertise-addr 169.254.1.2
+		
+		//No usar
+		(#docker swarm init
+		#docker swarm init --advertise-addr $(docker-machine ip node-1))
+		
+	.Nos devuelve el token que tenemos que usar para conectar los hosts
+	
+		docker swarm join --token SWMTKN-1-51uvtqctvx18p4oi78yrtlsemz5jn5ccaw48l0mzn0r2ndtjxo-0mkljvkeq42rbi1elniim4jxf 169.254.1.2:2377
+
+	.Copiar y pegar esa linea en los nodos slave
+	
+	NOTA!!!
+	
+		Si salta este error:
+		
+			Docker Swarm: Error response from daemon: error while validating Root CA Certificate: x509: certificate has expired or is not yet valid
+			
+		Se debe a que la fecha de las raspberries esta desincronizada.
+			. El master genera un certificado válido a partir de una fecha.
+	
+	WORKAORUND!!!
+		Setear la misma fecha/hora que la del master
+			.Setear fecha
+				date +%Y%m%d -s "20120418"
+			.Setear tiempo
+				date +%T -s "11:14:00"
+				
+R. COMANDOS
+
+	.Listar nodos del cluster
+	
+		docker node ls
+	
+	.Listar procesos de docker corriendo en ese host
+		
+		docker ps
+		
+	.Listar serivicios de docker corriendo en ese host
+	
+		docker service ls
+		
+
+-------------------------------------------------------------------------------------------
+-----------------------------------IMPELEMTACION PRÁCTICA----------------------------------
+-------------------------------------------------------------------------------------------
+.Pueden implementarse distintas configuraciones 
+	.Las aplicaciones que corren sobre docker swarm deben ser instaladas como servicios
+	.Balanceadores de carga
+	.Replicado y Servicios globales
+	
+	
+-------------------------------------------------------------------------------------------
+----------------------------------------HERRAMIENTAS---------------------------------------
+-------------------------------------------------------------------------------------------
+
+.Imagen OS Hypriot
+
+	https://blog.hypriot.com/downloads/
+	
+.Ip Scanner
+
+	https://www.advanced-ip-scanner.com/es/ 
+	
+.MTPutty
+
+	http://ttyplus.com/downloads.html
+	
+.Herramienta visual para gestionar nodos de docker: Portainer.io
+
+	.1 - Ejecutar el siguiente comando en el nodo Manager
+	
+		docker service create --name=portainer --publish=4445:9000/tcp --constraint=node.role==manager --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock portainer/portainer
+	
+		Portainer queda instalado y ejecutandose como un servicio.
+	
+	.2 - Acceder a Portainer
+	
+		Desde un navegador acceder a http://<Ip>:4445
+		
+	.3 - Seteo de usuario y contraseña:
+		
+		La primera vez que se inicia sesión se setea el password y usuario (pi | raspberry)
