@@ -11,6 +11,7 @@
 4. Login al sistema
 	.Usuario: pirate
 	.Pass: hypriot
+	
 5. Conectarse por ssh a las raspberries
 6. Configurar nombre 
 	.Abrir archivo de configuracion
@@ -141,7 +142,14 @@ R. COMANDOS
 	
 		docker service ls
 		
-
+	.Eliminar servicio
+		
+		docker service rm helloworld
+		
+	.Lista los contenedores utilizados para ese servicio
+	
+		docker service ps raspiNgInx
+		
 -------------------------------------------------------------------------------------------
 -----------------------------------IMPELEMTACION PRÁCTICA----------------------------------
 -------------------------------------------------------------------------------------------
@@ -150,6 +158,30 @@ R. COMANDOS
 	.Balanceadores de carga
 	.Replicado y Servicios globales
 	
+----------------------------NGINX LOAD BALANCER-----------------
+.Crear las instancias de nginx
+
+	docker service create --name raspiNgInx --publish 8080:80 --replicas 3 nginx               
+	
+		Explicacion:
+			--name -> nombre del servicio. Es el  nombre que nosotros le damos al servicio
+			--publish --> Son los puertos donde va a estar siendo publicado el server -> 
+				8080 -> Es el puerto publico en el que se lo va a publicar
+				80   -> Es el puerto de docker donde se lo va a publicar
+			--replicas --> Cantidad de veces que se va a replicar el servicio. Si tenemos 3 nodos sería coherente usar 3 replicas.
+			nginx --> Módulo de docker a instalar
+			
+.Listar servicios
+
+	docker service ps raspiNgInx
+	
+		Lista los contenedores utilizados para ese servicio
+
+.Acceder desde un navegador
+
+	http://169.254.1.2:8080/
+	http://169.254.1.3:8080/
+	http://169.254.1.4:8080/
 	
 -------------------------------------------------------------------------------------------
 ----------------------------------------HERRAMIENTAS---------------------------------------
@@ -182,3 +214,4 @@ R. COMANDOS
 	.3 - Seteo de usuario y contraseña:
 		
 		La primera vez que se inicia sesión se setea el password y usuario (pi | raspberry)
+		
